@@ -17,6 +17,7 @@
     .msg { margin-top: 16px; padding: 12px; border-radius: 10px; font-size: 0.95rem; display: none; }
     .msg.success { background: #e6f9f0; color: #0d4f3c; border: 1px solid #0d4f3c; display: block; }
     .msg.error { background: #fde8e8; color: #c0392b; border: 1px solid #c0392b; display: block; }
+    .msg.warning { background: #fff3cd; color: #856404; border: 1px solid #856404; display: block; }
     .geo { font-size: 0.8rem; color: #888; margin-bottom: 12px; }
   </style>
 </head>
@@ -44,16 +45,45 @@
   };
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
+
+  const EVENTO_LAT = -33.446763;
+  const EVENTO_LNG = -70.656249;
+  const RANGO_METROS = 40;
+
+  function calcularDistancia(lat1, lon1, lat2, lon2) {
+    const R = 6371000;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+
   let latitud = null, longitud = null;
+  const btn = document.getElementById('btn');
+  btn.disabled = true;
+
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(pos => {
       latitud = pos.coords.latitude;
       longitud = pos.coords.longitude;
-      document.getElementById('geo-status').textContent = 'Ubicacion lista';
+      const distancia = calcularDistancia(latitud, longitud, EVENTO_LAT, EVENTO_LNG);
+      if (distancia <= RANGO_METROS) {
+        document.getElementById('geo-status').textContent = 'Ubicacion verificada ✅';
+        btn.disabled = false;
+      } else {
+        document.getElementById('geo-status').textContent = 'Fuera del lugar del evento ❌';
+        document.getElementById('msg').textContent = 'No puedes registrarte porque no estas en el lugar del evento.';
+        document.getElementById('msg').className = 'msg warning';
+      }
     }, () => {
-      document.getElementById('geo-status').textContent = 'Sin ubicacion';
+      document.getElementById('geo-status').textContent = 'Sin acceso a ubicacion';
+      document.getElementById('msg').textContent = 'Debes permitir el acceso a tu ubicacion para registrarte.';
+      document.getElementById('msg').className = 'msg error';
     });
   }
+
   window.registrar = async function() {
     const nombre = document.getElementById('nombre').value.trim();
     if (!nombre) {
@@ -61,7 +91,6 @@
       document.getElementById('msg').className = 'msg error';
       return;
     }
-    const btn = document.getElementById('btn');
     btn.disabled = true;
     btn.textContent = 'Registrando...';
     const hoy = new Date(); hoy.setHours(0,0,0,0);
